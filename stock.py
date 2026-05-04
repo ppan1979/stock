@@ -8,7 +8,7 @@ from datetime import datetime, timedelta
 import time
 import re
 
-# ── API Key 管理 (維持原樣) ──────────────────────────────────────────────────
+# ── API Key 管理 ──────────────────────────────────────────────────────────────
 FINNHUB_KEY = st.secrets.get("FINNHUB_KEY", "d7s8j19r01qm28g8miggd7s8j19r01qm28g8mih0")
 
 # ── Page Config ───────────────────────────────────────────────────────────────
@@ -19,7 +19,7 @@ st.set_page_config(
     initial_sidebar_state="collapsed",
 )
 
-# ── Custom CSS (完全保留您的原始樣式) ─────────────────────────────────────────────
+# ── Custom CSS (完整保留原始樣式) ─────────────────────────────────────────────
 st.markdown("""
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Noto+Sans+TC:wght@300;400;500;700&display=swap');
@@ -44,7 +44,7 @@ html, body, [class*="css"] { background-color: var(--bg) !important; color: var(
 </style>
 """, unsafe_allow_html=True)
 
-# ── 工具函數 (維持原邏輯) ──────────────────────────────────────────────────
+# ── 輔助函數 ──────────────────────────────────────────────────────────────────
 def detect_market(symbol: str) -> str:
     s = re.sub(r'[^\w.]', '', symbol.upper().strip())
     if s.isdigit() or s.endswith(".TW"): return "TW"
@@ -59,13 +59,11 @@ def finnhub_get(endpoint: str, params: dict = None) -> dict | None:
         return r.json()
     except: return None
 
-# ── DATA FETCHERS (全面改為 Finnhub + 證交所) ───────────────────────────────
+# ── DATA FETCHERS (整合 Finnhub 與證交所) ────────────────────────────────────────
 def get_profile(symbol: str, market: str) -> dict:
     if market == "TW":
-        # 證交所備案
         s = re.sub(r'[^\d]', '', symbol)
         return {"companyName": f"台股 {s}", "currency": "TWD"}
-    # 美股 Finnhub
     data = finnhub_get("stock/profile2", {"symbol": symbol.upper()})
     return {"companyName": data.get("name"), "currency": data.get("currency")} if data else {}
 
@@ -79,34 +77,31 @@ def get_quote(symbol: str, market: str) -> dict:
             pe = float(m_res["data"][-1][2]) if m_res.get("stat") == "OK" else 0
             return {"price": price, "eps": price/pe if pe > 0 else 0}
         except: return {"price": 0, "eps": 0}
-    # 美股 Finnhub
+    
     quote = finnhub_get("quote", {"symbol": symbol.upper()})
     metrics = finnhub_get("stock/metric", {"symbol": symbol.upper(), "metric": "all"})
     eps = metrics.get("metric", {}).get("epsExclExtraItemsTTM", 0) if metrics else 0
     return {"price": quote.get("c", 0), "eps": eps} if quote else {"price": 0, "eps": 0}
 
 def get_price_history(symbol: str, market: str, days: int = 365) -> list:
-    # 歷史趨勢圖：統一使用 Finnhub Candle (美股穩定)
     end_ts = int(time.time())
     start_ts = end_ts - (days * 24 * 60 * 60)
-    
-    # 這裡的 symbol 處理：Finnhub 美股直接用，台股需要轉換格式，但為求穩定美股優先
-    res = "D" 
     target_sym = symbol.upper()
     
-    data = finnhub_get("stock/candle", {"symbol": target_sym, "resolution": res, "from": start_ts, "to": end_ts})
+    data = finnhub_get("stock/candle", {"symbol": target_sym, "resolution": "D", "from": start_ts, "to": end_ts})
     
     if data and data.get('s') == 'ok':
         hist = []
         for i in range(len(data['t'])):
             hist.append({
-                "date": datetime.fromtimestamp(data['t'][i]).strftime('%Y-%m-%d'),
+                # 關鍵修正：將 Unix 時間戳轉為 datetime 供 Plotly 辨識
+                "date": datetime.fromtimestamp(data['t'][i]), 
                 "close": data['c'][i]
             })
         return hist
     return []
 
-# ── VALUATION MODELS (保留您的 DCF 邏輯) ──────────────────────────────────────
+# ── VALUATION MODELS (保留原始邏輯) ─────────────────────────────────────────────
 def calc_dcf(eps, growth_rate, discount_rate, terminal_growth=0.03, years=10):
     if not eps or eps <= 0: return 0
     pv_sum = 0
@@ -119,7 +114,7 @@ def calc_dcf(eps, growth_rate, discount_rate, terminal_growth=0.03, years=10):
     tv_pv = tv / ((1 + discount_rate) ** years)
     return round(pv_sum + tv_pv, 2)
 
-# ── MAIN UI (維持您的結構) ──────────────────────────────────────────────────
+# ── MAIN UI (維持原始結構) ────────────────────────────────────────────────────
 st.markdown('<div class="hero-header"><div class="hero-title">📈 股票估值分析儀</div><div class="hero-sub">Valuation · Finnhub Engine</div></div>', unsafe_allow_html=True)
 
 col_in, col_btn = st.columns([4, 1])
@@ -138,7 +133,7 @@ if run and symbol_input.strip():
     raw_symbol = symbol_input.strip()
     market = detect_market(raw_symbol)
     
-    with st.spinner("正在從 Finnhub 抓取即時數據..."):
+    with st.spinner("正在抓取即時金融數據..."):
         profile = get_profile(raw_symbol, market)
         quote = get_quote(raw_symbol, market)
         price_hist = get_price_history(raw_symbol, market)
@@ -147,30 +142,37 @@ if run and symbol_input.strip():
         eps = quote.get("eps", 0)
         
         if price == 0:
-            st.error("找不到股票數據，請確認代號或 API Key。")
+            st.error("找不到股票數據，請確認代號正確或 API 次數是否用盡。")
             st.stop()
             
         dcf_value = calc_dcf(eps, manual_growth, risk_free, terminal_g)
         
-    # 渲染結果
+    # 渲染結果標題
     st.markdown(f"### {profile.get('companyName', raw_symbol.upper())} ({raw_symbol.upper()})")
     
+    # 顯示指標卡片
     m1, m2, m3 = st.columns(3)
     m1.metric("目前股價", f"{price:.2f} {profile.get('currency', '')}")
     m2.metric("DCF 估值", f"{dcf_value:.2f}")
     m3.metric("每股盈餘 (TTM)", f"{eps:.2f}")
 
+    # 分頁顯示圖表與比較
     t1, t2 = st.tabs(["📈 價格走勢", "💹 估值比較"])
+    
     with t1:
-        if price_hist:
-            df = pd.DataFrame(price_hist)
-            df['date'] = pd.to_datetime(df['date'])
+        if price_hist and len(price_hist) > 0:
+            df = pd.DataFrame(price_hist).sort_values("date")
             fig = px.line(df, x="date", y="close", template="plotly_dark")
             fig.update_traces(line_color='#00d4ff', line_width=2)
-            fig.update_layout(paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)')
+            fig.update_layout(
+                paper_bgcolor='rgba(0,0,0,0)', 
+                plot_bgcolor='rgba(0,0,0,0)',
+                xaxis=dict(showgrid=False),
+                yaxis=dict(showgrid=True, gridcolor='#2a3550')
+            )
             st.plotly_chart(fig, use_container_width=True)
         else:
-            st.warning("⚠️ 暫時無法取得歷史趨勢圖。")
+            st.warning("⚠️ 暫時無法取得歷史趨勢圖。請嘗試搜尋美股代號（如 TSLA）確認連線。")
             
     with t2:
         fig = go.Figure(go.Bar(
@@ -178,5 +180,9 @@ if run and symbol_input.strip():
             y=[price, dcf_value],
             marker_color=["#94a3b8", "#00d4ff"]
         ))
-        fig.update_layout(template="plotly_dark", paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)')
+        fig.update_layout(
+            template="plotly_dark", 
+            paper_bgcolor='rgba(0,0,0,0)', 
+            plot_bgcolor='rgba(0,0,0,0)'
+        )
         st.plotly_chart(fig, use_container_width=True)
