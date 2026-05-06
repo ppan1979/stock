@@ -125,7 +125,7 @@ return str(roc)
 
 # ── 修正 1：用 @st.cache_resource 讓 Session 在所有 request 間共用，
 
-# 不會每次都新建，等同「保持 Cookie / 連線池」 ──────────────────────
+# 不會每次都新建，等同”保持 Cookie / 連線池” ──────────────────────
 
 @st.cache_resource
 def _build_tw_session() -> requests.Session:
@@ -593,7 +593,7 @@ for yr_offset in range(0, 4):
         )
         if r.status_code == 200 and ("每股盈餘" in r.text or "EPS" in r.text):
             text = r.text
-            # 找含「基本每股盈餘」或「每股盈餘」的數字
+            # 找含"基本每股盈餘"或"每股盈餘"的數字
             for pattern in [
                 r"基本每股盈餘[^>]*>\s*([(\-]?\d[\d,\.]*)",
                 r"每股盈餘[^>]*>\s*([(\-]?\d[\d,\.]*)",
@@ -1122,7 +1122,7 @@ if not run or not symbol_input.strip():
 st.markdown(”””
 <div style="text-align:center;padding:60px 20px;color:var(--text3);">
 <div style="font-size:3rem;margin-bottom:16px;">🔭</div>
-<div style="font-size:1.1rem;color:var(--text2);">輸入股票代號後按「分析」</div>
+<div style="font-size:1.1rem;color:var(--text2);">輸入股票代號後按”分析”</div>
 <div style="margin-top:12px;font-size:0.85rem;line-height:2.0;">
 台股：2330 台積電 ｜ 2317 鴻海 ｜ 0050 元大50 ｜ 00878 國泰高股息<br>
 美股：AAPL ｜ TSLA ｜ NVDA ｜ MSFT
@@ -1274,9 +1274,9 @@ pb.empty()
 
 if not price and not income:
 st.error(
-f”❌ 找不到「{raw}」的資料。\n\n”
-“- 台股請輸入純數字代號，例如 **2330**、**0050**\n”
-“- 美股請輸入英文代號，例如 **AAPL**、**TSLA**”)
+f”❌ 找不到 [{raw}] 的資料。\n\n”
+“- 台股請輸入純數字代號，例如 2330、0050\n”
+“- 美股請輸入英文代號，例如 AAPL、TSLA”)
 st.stop()
 
 # ══════════════════════════════════════════════════════════════════════════════
